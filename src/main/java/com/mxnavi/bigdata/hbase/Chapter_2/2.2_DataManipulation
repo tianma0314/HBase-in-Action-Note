@@ -1,1 +1,16 @@
 1.底层：HBase写的路径
+    HBase的写操作结果默认会进入两个地方：
+        - write-ahead log
+        - MemStore：是内存中的写缓存（write buffer），大小由配置文件中hbase.hregion.memstore.flush.size项决定，当buffer
+                    被填满之后，会生成一个HFile文件（注：一个HBase列族可以有多个HFile，但是一个HFile只能对应一个列族）
+    只有当这两个地方的都确认无误之后，写操作才算是完成。
+2.当MemStore中未被填满，但是Region Server崩了的情况下，HBase可以依靠WAL恢复丢失的数据，因此不建议关闭WAL。
+3.HBase读取数据实行LRU缓存策略，也叫BlockCache，位于JVM堆上。BlockCache的设计是将经常访问的HFile放入内存中，从而避免磁盘
+访问，每个列族都有其自己的BlockCache。
+4.当访问HBase的某一行时，分如下步骤：
+    - 首先检查MemStore中是否有该行的追加操作
+    - 然后BlockCache检查包含这行数据的block中是否最近被访问过
+    - 最后访问磁盘上的HFiles
+5.删除数据：HBase删除数据并不是直接删除，而是标记该条数据为待删除状态，这样Get和Scan都会排除此条数据。因为HFile是不可变
+的，只有当major compaction发生时，数据才会实际删除。
+6.
